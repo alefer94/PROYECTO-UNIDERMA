@@ -15,6 +15,10 @@ class SyncFromApi extends Command
     protected $serviceMap = [
         'laboratories' => \App\Services\Sync\LaboratorySyncService::class,
         'catalog-types' => \App\Services\Sync\CatalogTypeSyncService::class,
+        'catalog-categories' => \App\Services\Sync\CatalogCategorySyncService::class,
+        'catalog-subcategories' => \App\Services\Sync\CatalogSubcategorySyncService::class,
+        'tag-categories' => \App\Services\Sync\TagCategorySyncService::class,
+        'tag-subcategories' => \App\Services\Sync\TagSubcategorySyncService::class,
         'tags' => \App\Services\Sync\TagSyncService::class,
         'products' => \App\Services\Sync\ProductSyncService::class,
         // Add more as you create them

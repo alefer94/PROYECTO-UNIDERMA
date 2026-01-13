@@ -2,41 +2,38 @@
 
 namespace App\Services\Sync;
 
-use App\Models\Tag;
+use App\Models\CatalogCategory;
 use App\Services\RestApiSyncService;
 
-class TagSyncService extends RestApiSyncService
+class CatalogCategorySyncService extends RestApiSyncService
 {
     protected function getModel(): string
     {
-        return Tag::class;
+        return CatalogCategory::class;
     }
     
     protected function getEndpoint(): string
     {
-        return config('api-sync.endpoints.tags');
+        return config('api-sync.endpoints.catalog_categories');
     }
     
     protected function getFieldMapping(): array
     {
         return [
-            'idTag' => 'IdTag',                         // API: camelCase → BD: PascalCase
-            'idClasificador' => 'IdClasificador',
-            'idSubClasificador' => 'IdSubClasificador',
+            // API (camelCase) → Database (PascalCase)
+            'codClasificador' => 'CodClasificador',
+            'codTipcat' => 'CodTipcat',
             'nombre' => 'Nombre',
-            'corta' => 'Corta',
-            'flgActivo' => 'FlgActivo',
-            'orden' => 'Orden',
         ];
     }
     
     protected function getPrimaryKey(): string
     {
-        return 'IdTag';
+        return 'CodClasificador';
     }
     
     /**
-     * Default parameters for tags endpoint
+     * Default parameters for catalog category endpoint
      */
     protected function getDefaultParams(): array
     {

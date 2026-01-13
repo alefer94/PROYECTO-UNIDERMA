@@ -238,12 +238,16 @@ class ProductSyncController extends Controller
             $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
             $text = strip_tags($text);
             
+            
             // Normalize special characters to ASCII
             $replacements = [
-                '–' => '-', '—' => '-',
-                ''' => "'", ''' => "'",
-                '"' => '"', '"' => '"',
-                '…' => '...',
+                "\xE2\x80\x93" => '-', // en dash
+                "\xE2\x80\x94" => '-', // em dash
+                "\xE2\x80\x98" => "'", // left single quote
+                "\xE2\x80\x99" => "'", // right single quote
+                "\xE2\x80\x9C" => '"', // left double quote
+                "\xE2\x80\x9D" => '"', // right double quote
+                "\xE2\x80\xA6" => '...', // ellipsis
             ];
             $text = str_replace(array_keys($replacements), array_values($replacements), $text);
             

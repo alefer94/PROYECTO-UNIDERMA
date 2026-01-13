@@ -22,3 +22,8 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+check_fks.php
+check_subcategories.php
+test_api_sync.php
+test_api.bat
+test_relationships.php

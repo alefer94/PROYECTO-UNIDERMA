@@ -5,12 +5,10 @@ use App\Http\Controllers\ProductSyncController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return response()->json([
+        'error' => 'Not Found'
+    ], 404);
 });
-
-// Catalog routes
-Route::get('/catalogs', [CatalogController::class, 'index'])->name('catalogs.index');
-Route::post('/catalogs/sync', [CatalogController::class, 'sync'])->name('catalogs.sync');
 
 // WooCommerce Product Sync routes
 Route::get('/woocommerce/sync', function () {

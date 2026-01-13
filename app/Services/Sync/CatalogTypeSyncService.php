@@ -21,7 +21,7 @@ class CatalogTypeSyncService extends RestApiSyncService
     {
         return [
             // API (camelCase) → Database (PascalCase)
-            'tipcat' => 'Tipcat',
+            'codTipcat' => 'Tipcat',
             'nombre' => 'Nombre',
             'idEstructura' => 'IdEstructura',
         ];
