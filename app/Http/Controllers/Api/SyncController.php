@@ -30,7 +30,7 @@ class SyncController extends Controller
     public function executeAction(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'action' => 'required|string|in:sync_all',
+            'action' => 'required|string|in:sync_all,sync_woocommerce',
             'data' => 'sometimes|array',
         ]);
 
@@ -46,6 +46,10 @@ class SyncController extends Controller
 
         if ($action === 'sync_all') {
             return $this->syncAll($data);
+        }
+
+        if ($action === 'sync_woocommerce') {
+            return $this->syncWooCommerce($data);
         }
 
         return response()->json([
@@ -151,5 +155,91 @@ class SyncController extends Controller
             'last_error' => $lastError,
             'attempts' => $maxAttempts,
         ], 500);
+    }
+
+    /**
+     * Sincronizar productos de Laravel a WooCommerce
+     */
+    private function syncWooCommerce(array $data)
+    {
+        try {
+            $limit = $data['limit'] ?? null;
+            $sku = $data['sku'] ?? null;
+            
+            \Log::info('Starting WooCommerce sync via API', [
+                'limit' => $limit,
+                'sku' => $sku,
+            ]);
+            
+            // Ejecutar el comando de sincronización
+            $exitCode = \Artisan::call('woocommerce:sync-products', array_filter([
+                '--limit' => $limit,
+                '--sku' => $sku,
+            ]));
+            
+            // Obtener la salida del comando
+            $output = \Artisan::output();
+            
+            if ($exitCode === 0) {
+                // Parsear el output para extraer estadísticas
+                $stats = $this->parseWooCommerceOutput($output);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Sincronización a WooCommerce completada exitosamente',
+                    'stats' => $stats,
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error en la sincronización a WooCommerce',
+                    'error' => 'Command failed with exit code ' . $exitCode,
+                ], 500);
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('WooCommerce sync failed', [
+                'error' => $e->getMessage(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en la sincronización a WooCommerce',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Parse WooCommerce sync output to extract statistics
+     */
+    private function parseWooCommerceOutput(string $output): array
+    {
+        $stats = [
+            'total' => 0,
+            'created' => 0,
+            'updated' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+        ];
+
+        // Extraer números de la tabla de resultados
+        if (preg_match('/Total Products\s+\|\s+(\d+)/', $output, $matches)) {
+            $stats['total'] = (int) $matches[1];
+        }
+        if (preg_match('/Created\s+\|\s+(\d+)/', $output, $matches)) {
+            $stats['created'] = (int) $matches[1];
+        }
+        if (preg_match('/Updated\s+\|\s+(\d+)/', $output, $matches)) {
+            $stats['updated'] = (int) $matches[1];
+        }
+        if (preg_match('/Skipped.*?\|\s+(\d+)/', $output, $matches)) {
+            $stats['skipped'] = (int) $matches[1];
+        }
+        if (preg_match('/Failed\s+\|\s+(\d+)/', $output, $matches)) {
+            $stats['failed'] = (int) $matches[1];
+        }
+
+        return $stats;
     }
 }

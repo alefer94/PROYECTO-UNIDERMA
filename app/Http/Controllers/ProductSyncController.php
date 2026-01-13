@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Catalog;
+use App\Models\Product;
 use App\Services\WooCommerceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -17,16 +17,16 @@ class ProductSyncController extends Controller
     }
 
     /**
-     * Sync all active catalog products to WooCommerce
+     * Sync all active products to WooCommerce
      */
     public function syncProducts()
     {
         try {
             // Get all products (not just active ones)
-            $catalogs = Catalog::all();
+            $products = Product::all();
             
             $results = [
-                'total' => $catalogs->count(),
+                'total' => $products->count(),
                 'created' => 0,
                 'updated' => 0,
                 'skipped' => 0,
@@ -45,12 +45,12 @@ class ProductSyncController extends Controller
                 ], 500);
             }
             
-            foreach ($catalogs as $catalog) {
+            foreach ($products as $product) {
                 try {
-                    $productData = $this->mapCatalogToWooCommerce($catalog);
+                    $productData = $this->mapProductToWooCommerce($product);
                     
                     // Check if product exists (IN MEMORY - FAST)
-                    $existingProduct = $wooProductsBySku->get($catalog->codCatalogo);
+                    $existingProduct = $wooProductsBySku->get($product->CodCatalogo);
                     
                     if ($existingProduct) {
                         // Product exists - compare data
@@ -72,8 +72,8 @@ class ProductSyncController extends Controller
                 } catch (\Exception $e) {
                     $results['failed']++;
                     $results['errors'][] = [
-                        'catalog_id' => $catalog->id,
-                        'sku' => $catalog->codCatalogo,
+                        'product_id' => $product->id,
+                        'sku' => $product->codCatalogo,
                         'error' => $e->getMessage()
                     ];
                 }
@@ -120,31 +120,31 @@ class ProductSyncController extends Controller
     /**
      * Map Catalog model to WooCommerce product format
      */
-    protected function mapCatalogToWooCommerce(Catalog $catalog): array
+    protected function mapProductToWooCommerce(Product $product): array
     {
         return [
             // Basic information
-            'name' => $catalog->nombre,
-            'sku' => $catalog->codCatalogo,
-            'description' => $catalog->descripcion,
-            'short_description' => $catalog->corta,
+            'name' => $product->Nombre,
+            'sku' => $product->CodCatalogo,
+            'description' => $product->Descripcion,
+            'short_description' => $product->Corta,
             
             // Pricing
-            'regular_price' => (string) $catalog->precio,
+            'regular_price' => (string) $product->Precio,
             
             // Stock management
-            'stock_quantity' => $catalog->stock,
-            'stock_status' => $catalog->stock > 0 ? 'instock' : 'outofstock',
+            'stock_quantity' => $product->Stock,
+            'stock_status' => $product->Stock > 0 ? 'instock' : 'outofstock',
             'manage_stock' => true,
             
             // Status
-            'status' => $catalog->flgActivo == 1 ? 'publish' : 'draft',
+            'status' => $product->FlgActivo == 1 ? 'publish' : 'draft',
             
             // Tags (convert semicolon-separated string to array)
-            'tags' => $this->parseTags($catalog->pasCodTag),
+            'tags' => $this->parseTags($product->PasCodTag),
             
             // Images - COMMENTED FOR TESTING
-            // 'images' => $this->parseImages($catalog->home),
+            // 'images' => $this->parseImages($product->Home),
             
             // Product type and settings
             'type' => 'simple',
@@ -157,7 +157,7 @@ class ProductSyncController extends Controller
             'backorders' => 'no',
             
             // Custom meta data for pharmaceutical information
-            'meta_data' => $this->buildMetaData($catalog),
+            'meta_data' => $this->buildMetaData($product),
         ];
     }
 
@@ -192,26 +192,26 @@ class ProductSyncController extends Controller
     /**
      * Build meta data array for pharmaceutical information
      */
-    protected function buildMetaData(Catalog $catalog): array
+    protected function buildMetaData(Product $product): array
     {
         $metaData = [];
         
         $fields = [
-            'codigo_tipo_catalogo' => $catalog->codTipcat,
-            'codigo_clasificador' => $catalog->codClasificador,
-            'codigo_subclasificador' => $catalog->codSubclasificador,
-            'codigo_laboratorio' => $catalog->codLaboratorio,
-            'registro_sanitario' => $catalog->registro,
-            'presentacion' => $catalog->presentacion,
-            'composicion' => $catalog->composicion,
-            'beneficios' => $catalog->bemeficios,
-            'modo_uso' => $catalog->modoUso,
-            'contraindicaciones' => $catalog->contraindicaciones,
-            'advertencias' => $catalog->advertencias,
-            'precauciones' => $catalog->precauciones,
-            'tipo_receta' => (string) $catalog->tipReceta,
-            'mostrar_modo_uso' => (string) $catalog->showModo,
-            'links_asociados' => $catalog->link,
+            'codigo_tipo_catalogo' => $product->CodTipcat,
+            'codigo_clasificador' => $product->CodClasificador,
+            'codigo_subclasificador' => $product->CodSubclasificador,
+            'codigo_laboratorio' => $product->CodLaboratorio,
+            'registro_sanitario' => $product->Registro,
+            'presentacion' => $product->Presentacion,
+            'composicion' => $product->Composicion,
+            'beneficios' => $product->Bemeficios,
+            'modo_uso' => $product->ModoUso,
+            'contraindicaciones' => $product->Contraindicaciones,
+            'advertencias' => $product->Advertencias,
+            'precauciones' => $product->Precauciones,
+            'tipo_receta' => (string) $product->TipReceta,
+            'mostrar_modo_uso' => (string) $product->ShowModo,
+            'links_asociados' => $product->Link,
         ];
         
         foreach ($fields as $key => $value) {
@@ -229,7 +229,7 @@ class ProductSyncController extends Controller
     /**
      * Check if product data has changed between WooCommerce and Laravel
      */
-    protected function hasProductChanged($existingProduct, array $newProductData, Catalog $catalog): bool
+    protected function hasProductChanged($existingProduct, array $newProductData, Product $product): bool
     {
         // Normalize text: decode HTML entities, strip tags, normalize special chars
         $normalize = function($text) {
