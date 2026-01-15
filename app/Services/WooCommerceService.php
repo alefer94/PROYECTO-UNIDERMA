@@ -45,4 +45,34 @@ class WooCommerceService
     {
         return $this->client->get("products/{$id}");
     }
+
+    /**
+     * Batch create, update, or delete products
+     * 
+     * @param array $data Array with 'create', 'update', and/or 'delete' keys
+     * @return mixed
+     */
+    public function batchProducts(array $data)
+    {
+        return $this->client->post('products/batch', $data);
+    }
+
+    /**
+     * Get categories with optional parameters
+     */
+    public function getCategories(array $params = [])
+    {
+        return $this->client->get('products/categories', $params);
+    }
+
+    /**
+     * Batch create, update, or delete categories
+     * 
+     * @param array $data Array with 'create', 'update', and/or 'delete' keys
+     * @return mixed
+     */
+    public function batchCategories(array $data)
+    {
+        return $this->client->post('products/categories/batch', $data);
+    }
 }

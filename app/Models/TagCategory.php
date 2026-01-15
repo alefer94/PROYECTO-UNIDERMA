@@ -17,11 +17,13 @@ class TagCategory extends Model
         'Corta',          // API: Corta
         'FlgActivo',      // API: FlgActivo
         'Orden',          // API: Orden
+        'WooCommerceCategoryId',
     ];
     
     protected $casts = [
         'FlgActivo' => 'boolean',
         'Orden' => 'integer',
+        'WooCommerceCategoryId' => 'integer',
     ];
     
     /**
