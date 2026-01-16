@@ -15,10 +15,12 @@ class CatalogType extends Model
         'Tipcat',        // API: Tipcat
         'Nombre',        // API: Nombre
         'IdEstructura',  // API: IdEstructura
+        'WooCommerceCategoryId',
     ];
     
     protected $casts = [
         'IdEstructura' => 'integer',
+        'WooCommerceCategoryId' => 'integer',
     ];
     
     /**

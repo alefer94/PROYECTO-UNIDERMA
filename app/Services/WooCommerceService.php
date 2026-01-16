@@ -16,7 +16,7 @@ class WooCommerceService
             config('services.woocommerce.secret'),
             [
                 'version' => config('services.woocommerce.version'),
-                'timeout' => 30,
+                'timeout' => 200,
             ]
         );
     }

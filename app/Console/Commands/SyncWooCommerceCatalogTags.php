@@ -70,36 +70,6 @@ class SyncWooCommerceCatalogTags extends Command
             return Command::FAILURE;
         }
         
-        // Buscar UnidermaMenu
-        $unidermaMenu = null;
-        foreach ($wcCategories as $category) {
-            if ($category->name === 'UnidermaMenu') {
-                $unidermaMenu = $category;
-                break;
-            }
-        }
-        
-        if (!$unidermaMenu) {
-            $this->warn("UnidermaMenu not found - Starting full creation mode");
-            $this->newLine();
-            
-            // Traer datos de Laravel primero
-            $laravelTagCategories = TagCategory::all();
-            $laravelTagSubcategories = TagSubcategory::all();
-            $laravelTags = Tag::all();
-            
-            // Crear jerarquía completa
-            $this->createFullHierarchy($laravelTagCategories, $laravelTagSubcategories, $laravelTags);
-            
-            $endTime = microtime(true);
-            $duration = round($endTime - $startTime, 2);
-            $this->info("✅ Full hierarchy created in {$duration} seconds!");
-            
-            return Command::SUCCESS;
-        }
-        
-        $this->info("UnidermaMenu found - ID: {$unidermaMenu->id}");
-        
         // Traer datos de los modelos de Laravel
         $laravelTagCategories = TagCategory::all();
         $laravelTagSubcategories = TagSubcategory::all();
@@ -109,39 +79,139 @@ class SyncWooCommerceCatalogTags extends Command
         $this->info("Laravel TagSubcategory: " . count($laravelTagSubcategories));
         $this->info("Laravel Tag: " . count($laravelTags));
         
-        // Obtener descendientes por nivel usando loops
+        // Obtener descendientes por nivel usando slug patterns
         $tagCatalog = [];
         $tagSubCatalog = [];
         $tag = [];
         
-        // Nivel 1: Hijos directos de UnidermaMenu (TagCatalog)
+        // Nivel 1: TagCategories (parent: 0, slug: cat-*)
         foreach ($wcCategories as $category) {
-            if ($category->parent === $unidermaMenu->id) {
+            if (str_starts_with($category->slug, 'cat-')) {
                 $tagCatalog[] = $category;
             }
         }
         
-        // Nivel 2: Nietos (TagSubCatalog)
-        foreach ($tagCatalog as $catalog) {
-            foreach ($wcCategories as $category) {
-                if ($category->parent === $catalog->id) {
-                    $tagSubCatalog[] = $category;
-                }
+        // Nivel 2: TagSubcategories (slug: subcat-*)
+        foreach ($wcCategories as $category) {
+            if (str_starts_with($category->slug, 'subcat-')) {
+                $tagSubCatalog[] = $category;
             }
         }
         
-        // Nivel 3: Bisnietos (Tag)
-        foreach ($tagSubCatalog as $subCatalog) {
-            foreach ($wcCategories as $category) {
-                if ($category->parent === $subCatalog->id) {
-                    $tag[] = $category;
-                }
+        // Nivel 3: Tags (slug: tag-*)
+        foreach ($wcCategories as $category) {
+            if (str_starts_with($category->slug, 'tag-')) {
+                $tag[] = $category;
             }
         }
         
         $this->info("TagCatalog: " . count($tagCatalog));
         $this->info("TagSubCatalog: " . count($tagSubCatalog));
         $this->info("Tag: " . count($tag));
+        
+        // Detectar y re-enlazar categorías huérfanas
+        $this->newLine();
+        $this->info("=== DETECTING ORPHANED CATEGORIES ===");
+        
+        $orphanedCategories = [];
+        $orphanedSubcategories = [];
+        $orphanedTags = [];
+        
+        // Detectar TagCategories huérfanas (parent != 0, deben ser raíz)
+        foreach ($wcCategories as $category) {
+            if (str_starts_with($category->slug, 'cat-') && $category->parent !== 0) {
+                $orphanedCategories[] = $category;
+                $this->warn("  Found orphaned TagCategory: {$category->name} (ID: {$category->id}, parent: {$category->parent})");
+            }
+        }
+        
+        // Detectar TagSubcategories huérfanas (parent no es un TagCatalog válido)
+        $validCatalogIds = array_map(fn($cat) => $cat->id, $tagCatalog);
+        foreach ($wcCategories as $category) {
+            if (str_starts_with($category->slug, 'subcat-') && !in_array($category->parent, $validCatalogIds)) {
+                $orphanedSubcategories[] = $category;
+                $this->warn("  Found orphaned TagSubcategory: {$category->name} (ID: {$category->id}, parent: {$category->parent})");
+            }
+        }
+        
+        // Detectar Tags huérfanos (parent no es un TagSubcatalog válido)
+        $validSubcatalogIds = array_map(fn($subcat) => $subcat->id, $tagSubCatalog);
+        foreach ($wcCategories as $category) {
+            if (str_starts_with($category->slug, 'tag-') && !in_array($category->parent, $validSubcatalogIds)) {
+                $orphanedTags[] = $category;
+                $this->warn("  Found orphaned Tag: {$category->name} (ID: {$category->id}, parent: {$category->parent})");
+            }
+        }
+        
+        // Re-enlazar categorías huérfanas
+        $relinkData = [];
+        
+        // Re-enlazar TagCategories a raíz (parent: 0)
+        foreach ($orphanedCategories as $orphan) {
+            $relinkData[] = [
+                'id' => $orphan->id,
+                'parent' => 0  // TagCategories son categorías raíz
+            ];
+            $tagCatalog[] = $orphan; // Agregar a la lista
+        }
+        
+        // Re-enlazar TagSubcategories a su TagCategory correcto
+        foreach ($orphanedSubcategories as $orphan) {
+            // Extraer IdClasificador del slug (subcat-{IdSubClasificador}-{nombre})
+            preg_match('/subcat-(\d+)-/', $orphan->slug, $matches);
+            if (isset($matches[1])) {
+                $idSubClasificador = (int)$matches[1];
+                $laravelSubcat = $laravelTagSubcategories->firstWhere('IdSubClasificador', $idSubClasificador);
+                
+                if ($laravelSubcat) {
+                    $parentCat = $laravelTagCategories->firstWhere('IdClasificador', $laravelSubcat->IdClasificador);
+                    
+                    if ($parentCat && $parentCat->WooCommerceCategoryId) {
+                        $relinkData[] = [
+                            'id' => $orphan->id,
+                            'parent' => $parentCat->WooCommerceCategoryId
+                        ];
+                        $tagSubCatalog[] = $orphan;
+                    }
+                }
+            }
+        }
+        
+        // Re-enlazar Tags a su TagSubcategory correcto
+        foreach ($orphanedTags as $orphan) {
+            // Extraer IdTag del slug (tag-{IdTag}-{nombre})
+            preg_match('/tag-(\d+)-/', $orphan->slug, $matches);
+            if (isset($matches[1])) {
+                $idTag = (int)$matches[1];
+                $laravelTag = $laravelTags->firstWhere('IdTag', $idTag);
+                
+                if ($laravelTag) {
+                    $parentSubcat = $laravelTagSubcategories->firstWhere('IdSubClasificador', $laravelTag->IdSubClasificador);
+                    
+                    if ($parentSubcat && $parentSubcat->WooCommerceCategoryId) {
+                        $relinkData[] = [
+                            'id' => $orphan->id,
+                            'parent' => $parentSubcat->WooCommerceCategoryId
+                        ];
+                        $tag[] = $orphan;
+                    }
+                }
+            }
+        }
+        
+        // Ejecutar re-enlace si hay datos
+        if (!empty($relinkData)) {
+            $this->warn("Re-linking " . count($relinkData) . " orphaned categories to correct parents");
+            
+            try {
+                $response = $this->wooCommerceService->batchCategories(['update' => $relinkData]);
+                $this->info("  ✓ Re-linked " . count($response->update) . " categories");
+            } catch (\Exception $e) {
+                $this->error("  ✗ Failed to re-link: " . $e->getMessage());
+            }
+        } else {
+            $this->info("No orphaned categories found");
+        }
         
         // Obtener todos los WooCommerceCategoryId de Laravel y enlazar faltantes
         $laravelWcIds = [];
@@ -287,8 +357,8 @@ class SyncWooCommerceCatalogTags extends Command
             }
         }
         
-        // Combinar todos los descendientes
-        $descendants = array_merge([$unidermaMenu], $tagCatalog, $tagSubCatalog, $tag);
+        // Combinar todos los descendientes (solo niveles de tags)
+        $descendants = array_merge($tagCatalog, $tagSubCatalog, $tag);
         
         $this->info("Total categories in hierarchy: " . count($descendants));
         
@@ -480,7 +550,7 @@ class SyncWooCommerceCatalogTags extends Command
                 $createCatData[] = [
                     'name' => $cat->Nombre,
                     'slug' => $this->generateSlug('cat', $cat->IdClasificador, $cat->Nombre),
-                    'parent' => $unidermaMenu->id
+                    'parent' => 0  // TagCategories son categorías raíz
                 ];
             }
             
@@ -608,48 +678,20 @@ class SyncWooCommerceCatalogTags extends Command
     }
     
     /**
-     * Create full category hierarchy when UnidermaMenu doesn't exist
+     * Create full category hierarchy (TagCategories as root level)
      */
     protected function createFullHierarchy($laravelTagCategories, $laravelTagSubcategories, $laravelTags)
     {
         try {
-            // Step 1: Create UnidermaMenu
-            $this->info("Step 1: Creating UnidermaMenu...");
-            
-            $rootData = [
-                'create' => [
-                    [
-                        'name' => 'UnidermaMenu',
-                        'slug' => 'uniderma-menus',
-                        'parent' => 0
-                    ]
-                ]
-            ];
-            
-            try {
-                $rootResponse = $this->wooCommerceService->batchCategories($rootData);
-                
-                if (!isset($rootResponse->create) || count($rootResponse->create) === 0) {
-                    $this->error("✗ Failed to create UnidermaMenu - No response");
-                    return;
-                }
-                
-                $unidermaMenuId = $rootResponse->create[0]->id;
-                $this->info("  ✓ Created UnidermaMenu - ID: {$unidermaMenuId}");
-            } catch (\Exception $e) {
-                $this->error("✗ Error creating UnidermaMenu: " . $e->getMessage());
-                return;
-            }
-            
-            // Step 2: Batch create TagCategories
-            $this->info("Step 2: Creating TagCategories...");
+            // Step 1: Batch create TagCategories (as root categories)
+            $this->info("Step 1: Creating TagCategories...");
             
             $categoriesData = [];
             foreach ($laravelTagCategories as $cat) {
                 $categoriesData[] = [
                     'name' => $cat->Nombre,
                     'slug' => $this->generateSlug('cat', $cat->IdClasificador, $cat->Nombre),
-                    'parent' => $unidermaMenuId
+                    'parent' => 0  // Root level
                 ];
             }
             
@@ -673,8 +715,8 @@ class SyncWooCommerceCatalogTags extends Command
                 return;
             }
             
-            // Step 3: Batch create TagSubcategories
-            $this->info("Step 3: Creating TagSubcategories...");
+            // Step 2: Batch create TagSubcategories
+            $this->info("Step 2: Creating TagSubcategories...");
             
             $subcategoriesData = [];
             foreach ($laravelTagSubcategories as $subcat) {
@@ -712,8 +754,8 @@ class SyncWooCommerceCatalogTags extends Command
                 return;
             }
             
-            // Step 4: Batch create Tags
-            $this->info("Step 4: Creating Tags...");
+            // Step 3: Batch create Tags
+            $this->info("Step 3: Creating Tags...");
             
             $tagsData = [];
             foreach ($laravelTags as $tag) {
@@ -754,11 +796,10 @@ class SyncWooCommerceCatalogTags extends Command
             // Summary
             $this->newLine();
             $this->info("✅ Summary:");
-            $this->info("  - UnidermaMenu: 1");
             $this->info("  - TagCategories: " . count($catResponse->create));
             $this->info("  - TagSubcategories: " . count($subcatResponse->create));
             $this->info("  - Tags: " . count($tagsResponse->create));
-            $this->info("  - Total API calls: 4");
+            $this->info("  - Total API calls: 3");
             
         } catch (\Exception $e) {
             $this->error("✗ Critical error in hierarchy creation: " . $e->getMessage());

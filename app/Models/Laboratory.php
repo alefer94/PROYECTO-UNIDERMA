@@ -14,6 +14,11 @@ class Laboratory extends Model
     protected $fillable = [
         'CodLaboratorio', // API: CodLaboratorio
         'NomLaboratorio', // API: NomLaboratorio
+        'WooCommerceCategoryId',
+    ];
+    
+    protected $casts = [
+        'WooCommerceCategoryId' => 'integer',
     ];
     
     /**

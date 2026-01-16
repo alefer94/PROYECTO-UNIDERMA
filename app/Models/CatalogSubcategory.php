@@ -16,6 +16,11 @@ class CatalogSubcategory extends Model
         'CodTipcat',          // API: CodTipcat
         'CodClasificador',    // API: CodClasificador
         'Nombre',             // API: Nombre
+        'WooCommerceCategoryId',
+    ];
+    
+    protected $casts = [
+        'WooCommerceCategoryId' => 'integer',
     ];
     
     /**
