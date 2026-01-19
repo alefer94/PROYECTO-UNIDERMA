@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Product;
 use App\Services\WooCommerceService;
+use App\Services\ProductImageService;
 use Illuminate\Console\Command;
 use Illuminate\Database\QueryException;
 use PDOException;
@@ -14,11 +15,13 @@ class SyncWooCommerceProducts extends Command
     protected $description = 'Synchronize products with WooCommerce using batch operations';
     
     protected $wooCommerceService;
+    protected $productImageService;
     
-    public function __construct(WooCommerceService $wooCommerceService)
+    public function __construct(WooCommerceService $wooCommerceService, ProductImageService $productImageService)
     {
         parent::__construct();
         $this->wooCommerceService = $wooCommerceService;
+        $this->productImageService = $productImageService;
     }
     
     public function handle()
@@ -193,10 +196,16 @@ class SyncWooCommerceProducts extends Command
                     
                     if (!empty($batchData['update'])) {
                         // Chunk updates if more than 50
-                        $updateChunks = array_chunk($batchData['update'], 50);
+                        $updateChunks = array_chunk($batchData['update'], 50); // Reduced from 50 to 10 for debugging
                         
                         foreach ($updateChunks as $index => $chunk) {
                             $batch = ['update' => $chunk];
+                            
+                            // Debug: Show categories being sent for each product
+                            foreach ($chunk as $item) {
+                                $catIds = implode(',', array_column($item['categories'] ?? [], 'id'));
+                                $this->info("  [DEBUG] Sending Update for SKU {$item['sku']} (ID: {$item['id']}) with Categories: [{$catIds}]");
+                            }
                             
                             // Add deletes only to first batch
                             if ($index === 0 && !empty($batchData['delete'])) {
@@ -212,7 +221,23 @@ class SyncWooCommerceProducts extends Command
                                 }
                                 
                                 if (isset($response->update)) {
-                                    $this->info("  ✓ Updated: " . count($response->update) . " products (batch " . ($index + 1) . ")");
+                                    $updatedCount = count($response->update);
+                                    $requestedCount = count($chunk);
+                                    $this->info("  ✓ Updated: " . $updatedCount . " / " . $requestedCount . " requested products (batch " . ($index + 1) . ")");
+                                    
+                                    // Verify which specific IDs failed
+                                    $updatedIds = collect($response->update)->pluck('id')->toArray();
+                                    $requestedIds = collect($chunk)->pluck('id')->toArray();
+                                    $failedIds = array_diff($requestedIds, $updatedIds);
+                                    
+                                    if (!empty($failedIds)) {
+                                        $this->error("  ⚠ The following Product IDs failed to update in this batch:");
+                                        foreach ($failedIds as $failedId) {
+                                            // Find SKU for better context
+                                            $sku = collect($chunk)->firstWhere('id', $failedId)['sku'] ?? 'Unknown';
+                                            $this->error("    - ID: {$failedId} (SKU: {$sku})");
+                                        }
+                                    }
                                 }
                             } catch (\Exception $e) {
                                 $this->error("  ✗ Update batch " . ($index + 1) . " failed: " . $e->getMessage());
@@ -237,7 +262,7 @@ class SyncWooCommerceProducts extends Command
                 
                 // Process creates in chunks of 50
                 if (!empty($batchData['create'])) {
-                    $createChunks = array_chunk($batchData['create'], 50);
+                    $createChunks = array_chunk($batchData['create'], 15);
                     
                     foreach ($createChunks as $index => $chunk) {
                         try {
@@ -267,7 +292,7 @@ class SyncWooCommerceProducts extends Command
         
         return Command::SUCCESS;
     }
-    
+
     /**
      * Map Laravel Product to WooCommerce product format
      */
@@ -306,18 +331,23 @@ class SyncWooCommerceProducts extends Command
         $catalogCategoryId = $this->getCatalogCategoryId($product);
         if ($catalogCategoryId) {
             $categories[] = ['id' => $catalogCategoryId];
+            // $categories[] = ['id' => 668];
         }
         
         if (!empty($categories)) {
             $data['categories'] = $categories;
         }
         
-        // Add images if available
-        // if ($product->Link) {
-        //     $data['images'] = [
-        //         ['src' => $product->Link]
-        //     ];
-        // }
+        // Add images if available (from FTP sync or Link fallback)
+        $images = $this->productImageService->getWooCommerceImageUrls($product->Home);
+        
+        if (!empty($images)) {
+            $data['images'] = $images;
+        } elseif ($product->Link) {
+            $data['images'] = [
+                ['src' => $product->Link]
+            ];
+        }
         
         // Add metadata
         $metaData = [];
@@ -487,6 +517,33 @@ class SyncWooCommerceProducts extends Command
                 $laravelPreview = is_string($laravelValue) ? substr($laravelValue, 0, 30) : json_encode($laravelValue);
                 $changes[] = "meta[{$key}]: WC='{$wcPreview}...' vs Laravel='{$laravelPreview}...'";
             }
+        }
+
+        // // Compare images
+        // // We compare filenames because the domain might change but the filename should be unique per product
+        $wcImages = collect($wcProduct->images ?? [])->pluck('src')->map(function($url) {
+            return basename($url);
+        })->sort()->values()->toArray();
+        
+        // Get local images using ProductImageService
+        if ($laravelProduct->Home) {
+            $normalizedPath = $this->productImageService->normalizeFtpPath($laravelProduct->Home);
+            $localImages = $this->productImageService->getProductImages($laravelProduct->CodCatalogo, $normalizedPath);
+        } else {
+            $localImages = [];
+        }
+        
+        sort($localImages); // Sort for comparison
+        
+        // If no local images but Link exists, check against it
+        if (empty($localImages) && $laravelProduct->Link) {
+            $localImages = [basename($laravelProduct->Link)];
+        }
+        
+        if ($wcImages !== $localImages) {
+            $wcCount = count($wcImages);
+            $localCount = count($localImages);
+            $changes[] = "images: WC count={$wcCount} vs Laravel count={$localCount}";
         }
         
         // Log changes if any detected

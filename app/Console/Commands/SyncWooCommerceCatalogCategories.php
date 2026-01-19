@@ -212,8 +212,31 @@ class SyncWooCommerceCatalogCategories extends Command
 
         foreach ($laravelCatalogTypes as $catType){
             if($catType->WooCommerceCategoryId){
-                $laravelWcIds[] = $catType->WooCommerceCategoryId;
+                // Verify that the ID exists in WooCommerce
+                $existsInWc = $this->findById($catalogTypes, $catType->WooCommerceCategoryId);
+                
+                if ($existsInWc) {
+                    // The ID is valid
+                    $laravelWcIds[] = $catType->WooCommerceCategoryId;
+                } else {
+                    // The ID doesn't exist → Search by slug or create
+                    $expectedSlug = $this->generateSlug('type-',$catType->Tipcat,$catType->Nombre);
+                    $found = $this->findBySlug($catalogTypes,$expectedSlug);
+                    
+                    if($found){
+                        // Update with the correct ID
+                        $catType->WooCommerceCategoryId = $found->id;
+                        $catType->save();
+                        $laravelWcIds[] = $found->id;
+                        $linkedCount++;
+                        $this->info("  Re-linked CatalogType '{$catType->Nombre}' to WC ID: {$found->id}");
+                    }else{
+                        // Doesn't exist → Create
+                        $CatalogsTypeToCreate[] = $catType;
+                    }
+                }
             }else{
+                // No ID → Search by slug
                 $expectedSlug = $this->generateSlug('type-',$catType->Tipcat,$catType->Nombre);
                 $found = $this->findBySlug($catalogTypes,$expectedSlug);
                 if($found){
@@ -221,7 +244,7 @@ class SyncWooCommerceCatalogCategories extends Command
                     $catType->save();
                     $laravelWcIds[] = $found->id;
                     $linkedCount++;
-                    $this->info("  Linked CatalogType {$catType->Nombre} to WC ID: {$found->id}");
+                    $this->info("  Linked CatalogType '{$catType->Nombre}' to WC ID: {$found->id}");
                 }else{
                     $CatalogsTypeToCreate[] = $catType;
                 }
@@ -232,8 +255,31 @@ class SyncWooCommerceCatalogCategories extends Command
 
         foreach ($laravelCatalogCategories as $catalogCat){
             if($catalogCat->WooCommerceCategoryId){
-                $laravelWcIds[] = $catalogCat->WooCommerceCategoryId;
+                // Verify that the ID exists in WooCommerce
+                $existsInWc = $this->findById($catalogCategories, $catalogCat->WooCommerceCategoryId);
+                
+                if ($existsInWc) {
+                    // The ID is valid
+                    $laravelWcIds[] = $catalogCat->WooCommerceCategoryId;
+                } else {
+                    // The ID doesn't exist → Search by slug or create
+                    $expectedSlug = $this->generateSlug('typecat-',$catalogCat->CodClasificador,$catalogCat->Nombre);
+                    $found = $this->findBySlug($catalogCategories,$expectedSlug);
+                    
+                    if($found){
+                        // Update with the correct ID
+                        $catalogCat->WooCommerceCategoryId = $found->id;
+                        $catalogCat->save();
+                        $laravelWcIds[] = $found->id;
+                        $linkedCount++;
+                        $this->info("  Re-linked CatalogCategory '{$catalogCat->Nombre}' to WC ID: {$found->id}");
+                    }else{
+                        // Doesn't exist → Create
+                        $CatalogsCategoryToCreate[] = $catalogCat;
+                    }
+                }
             }else{
+                // No ID → Search by slug
                 $expectedSlug = $this->generateSlug('typecat-',$catalogCat->CodClasificador,$catalogCat->Nombre);
                 $found = $this->findBySlug($catalogCategories,$expectedSlug);
 
@@ -242,7 +288,7 @@ class SyncWooCommerceCatalogCategories extends Command
                     $catalogCat->save();
                     $laravelWcIds[] = $found->id;
                     $linkedCount++;
-                    $this->info("  Linked CatalogCategory {$catalogCat->Nombre} to WC ID: {$found->id}");
+                    $this->info("  Linked CatalogCategory '{$catalogCat->Nombre}' to WC ID: {$found->id}");
                 }else{
                     $CatalogsCategoryToCreate[] = $catalogCat;
                 }
@@ -251,8 +297,31 @@ class SyncWooCommerceCatalogCategories extends Command
 
         foreach ($laravelCatalogSubcategories as $catalogSubcat){
             if($catalogSubcat->WooCommerceCategoryId){
-                $laravelWcIds[] = $catalogSubcat->WooCommerceCategoryId;
+                // Verify that the ID exists in WooCommerce
+                $existsInWc = $this->findById($catalogSubcategories, $catalogSubcat->WooCommerceCategoryId);
+                
+                if ($existsInWc) {
+                    // The ID is valid
+                    $laravelWcIds[] = $catalogSubcat->WooCommerceCategoryId;
+                } else {
+                    // The ID doesn't exist → Search by slug or create
+                    $expectedSlug = $this->generateSlug('typesub-',$catalogSubcat->CodSubClasificador,$catalogSubcat->Nombre);
+                    $found = $this->findBySlug($catalogSubcategories,$expectedSlug);
+                    
+                    if($found){
+                        // Update with the correct ID
+                        $catalogSubcat->WooCommerceCategoryId = $found->id;
+                        $catalogSubcat->save();
+                        $laravelWcIds[] = $found->id;
+                        $linkedCount++;
+                        $this->info("  Re-linked CatalogSubcategory '{$catalogSubcat->Nombre}' to WC ID: {$found->id}");
+                    }else{
+                        // Doesn't exist → Create
+                        $CatalogsSubcategoryToCreate[] = $catalogSubcat;
+                    }
+                }
             }else{
+                // No ID → Search by slug
                 $expectedSlug = $this->generateSlug('typesub-',$catalogSubcat->CodSubClasificador,$catalogSubcat->Nombre);
                 $found = $this->findBySlug($catalogSubcategories,$expectedSlug);
 
@@ -261,7 +330,7 @@ class SyncWooCommerceCatalogCategories extends Command
                     $catalogSubcat->save();
                     $laravelWcIds[] = $found->id;
                     $linkedCount++;
-                    $this->info("  Linked CatalogSubcategory {$catalogSubcat->Nombre} to WC ID: {$found->id}");
+                    $this->info("  Linked CatalogSubcategory '{$catalogSubcat->Nombre}' to WC ID: {$found->id}");
                 }else{
                     $CatalogsSubcategoryToCreate[] = $catalogSubcat;
                 }
@@ -666,6 +735,19 @@ class SyncWooCommerceCatalogCategories extends Command
     {
         foreach ($categories as $category) {
             if ($category->slug === $slug) {
+                return $category;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Find category by ID in WooCommerce array
+     */
+    protected function findById(array $categories, int $id)
+    {
+        foreach ($categories as $category) {
+            if ($category->id === $id) {
                 return $category;
             }
         }

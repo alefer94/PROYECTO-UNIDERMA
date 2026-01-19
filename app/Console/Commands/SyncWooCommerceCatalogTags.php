@@ -226,9 +226,31 @@ class SyncWooCommerceCatalogTags extends Command
         // Procesar TagCategory
         foreach ($laravelTagCategories as $cat) {
             if ($cat->WooCommerceCategoryId) {
-                $laravelWcIds[] = $cat->WooCommerceCategoryId;
+                // Verify that the ID exists in WooCommerce
+                $existsInWc = $this->findById($tagCatalog, $cat->WooCommerceCategoryId);
+                
+                if ($existsInWc) {
+                    // The ID is valid
+                    $laravelWcIds[] = $cat->WooCommerceCategoryId;
+                } else {
+                    // The ID doesn't exist → Search by slug or create
+                    $expectedSlug = $this->generateSlug('cat', $cat->IdClasificador, $cat->Nombre);
+                    $found = $this->findBySlug($tagCatalog, $expectedSlug);
+                    
+                    if ($found) {
+                        // Update with the correct ID
+                        $cat->WooCommerceCategoryId = $found->id;
+                        $cat->save();
+                        $laravelWcIds[] = $found->id;
+                        $linkedCount++;
+                        $this->line("  Re-linked TagCategory '{$cat->Nombre}' to WC ID: {$found->id}");
+                    } else {
+                        // Doesn't exist → Create
+                        $categoriesToCreate[] = $cat;
+                    }
+                }
             } else {
-                // Buscar por slug en WooCommerce
+                // No ID → Search by slug
                 $expectedSlug = $this->generateSlug('cat', $cat->IdClasificador, $cat->Nombre);
                 $found = $this->findBySlug($tagCatalog, $expectedSlug);
                 
@@ -249,8 +271,31 @@ class SyncWooCommerceCatalogTags extends Command
         // Procesar TagSubcategory
         foreach ($laravelTagSubcategories as $subcat) {
             if ($subcat->WooCommerceCategoryId) {
-                $laravelWcIds[] = $subcat->WooCommerceCategoryId;
+                // Verify that the ID exists in WooCommerce
+                $existsInWc = $this->findById($tagSubCatalog, $subcat->WooCommerceCategoryId);
+                
+                if ($existsInWc) {
+                    // The ID is valid
+                    $laravelWcIds[] = $subcat->WooCommerceCategoryId;
+                } else {
+                    // The ID doesn't exist → Search by slug or create
+                    $expectedSlug = $this->generateSlug('subcat', $subcat->IdSubClasificador, $subcat->Nombre);
+                    $found = $this->findBySlug($tagSubCatalog, $expectedSlug);
+                    
+                    if ($found) {
+                        // Update with the correct ID
+                        $subcat->WooCommerceCategoryId = $found->id;
+                        $subcat->save();
+                        $laravelWcIds[] = $found->id;
+                        $linkedCount++;
+                        $this->line("  Re-linked TagSubcategory '{$subcat->Nombre}' to WC ID: {$found->id}");
+                    } else {
+                        // Doesn't exist → Create
+                        $subcategoriesToCreate[] = $subcat;
+                    }
+                }
             } else {
+                // No ID → Search by slug
                 $expectedSlug = $this->generateSlug('subcat', $subcat->IdSubClasificador, $subcat->Nombre);
                 $found = $this->findBySlug($tagSubCatalog, $expectedSlug);
                 
@@ -269,8 +314,31 @@ class SyncWooCommerceCatalogTags extends Command
         // Procesar Tag
         foreach ($laravelTags as $t) {
             if ($t->WooCommerceCategoryId) {
-                $laravelWcIds[] = $t->WooCommerceCategoryId;
+                // Verify that the ID exists in WooCommerce
+                $existsInWc = $this->findById($tag, $t->WooCommerceCategoryId);
+                
+                if ($existsInWc) {
+                    // The ID is valid
+                    $laravelWcIds[] = $t->WooCommerceCategoryId;
+                } else {
+                    // The ID doesn't exist → Search by slug or create
+                    $expectedSlug = $this->generateSlug('tag', $t->IdTag, $t->Nombre);
+                    $found = $this->findBySlug($tag, $expectedSlug);
+                    
+                    if ($found) {
+                        // Update with the correct ID
+                        $t->WooCommerceCategoryId = $found->id;
+                        $t->save();
+                        $laravelWcIds[] = $found->id;
+                        $linkedCount++;
+                        $this->line("  Re-linked Tag '{$t->Nombre}' to WC ID: {$found->id}");
+                    } else {
+                        // Doesn't exist → Create
+                        $tagsToCreate[] = $t;
+                    }
+                }
             } else {
+                // No ID → Search by slug
                 $expectedSlug = $this->generateSlug('tag', $t->IdTag, $t->Nombre);
                 $found = $this->findBySlug($tag, $expectedSlug);
                 
@@ -814,6 +882,19 @@ class SyncWooCommerceCatalogTags extends Command
     {
         foreach ($categories as $category) {
             if ($category->slug === $slug) {
+                return $category;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Find category by ID in WooCommerce array
+     */
+    protected function findById(array $categories, int $id)
+    {
+        foreach ($categories as $category) {
+            if ($category->id === $id) {
                 return $category;
             }
         }
