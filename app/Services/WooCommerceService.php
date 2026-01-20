@@ -16,7 +16,8 @@ class WooCommerceService
             config('services.woocommerce.secret'),
             [
                 'version' => config('services.woocommerce.version'),
-                // 'timeout' => 300,
+                'timeout' => config('api-sync.woocommerce_timeout', 120),
+                'verify_ssl' => false,
             ]
         );
     }
@@ -48,8 +49,8 @@ class WooCommerceService
 
     /**
      * Batch create, update, or delete products
-     * 
-     * @param array $data Array with 'create', 'update', and/or 'delete' keys
+     *
+     * @param  array  $data  Array with 'create', 'update', and/or 'delete' keys
      * @return mixed
      */
     public function batchProducts(array $data)
@@ -67,8 +68,8 @@ class WooCommerceService
 
     /**
      * Batch create, update, or delete categories
-     * 
-     * @param array $data Array with 'create', 'update', and/or 'delete' keys
+     *
+     * @param  array  $data  Array with 'create', 'update', and/or 'delete' keys
      * @return mixed
      */
     public function batchCategories(array $data)
