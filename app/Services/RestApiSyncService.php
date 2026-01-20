@@ -99,7 +99,7 @@ abstract class RestApiSyncService
         }
         
         // Build HTTP request with timeout and retry
-        $request = Http::timeout(config('api-sync.timeout', 30))
+        $request = Http::timeout(config('api-sync.timeout') ?? 30)
             ->retry(
                 config('api-sync.retry_times', 3),
                 config('api-sync.retry_delay', 100)
