@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('laboratories', function (Blueprint $table) {
             $table->string('CodLaboratorio')->primary(); // BD: C_C_LABORATORIO
             $table->string('NomLaboratorio'); // BD: C_T_NOMBRE
+            $table->boolean('FlgNuevo')->default(false); // BD: flgNuevo (0:antiguo 1:nuevo)
             $table->timestamps();
         });
     }

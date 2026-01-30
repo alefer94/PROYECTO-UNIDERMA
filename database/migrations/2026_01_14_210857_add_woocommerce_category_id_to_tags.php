@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('tags', function (Blueprint $table) {
-            //
+            $table->unsignedBigInteger('WooCommerceCategoryId')->nullable()->after('Orden');
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('tags', function (Blueprint $table) {
-            //
+            $table->dropColumn('WooCommerceCategoryId');
         });
     }
 };

@@ -21,6 +21,7 @@ class SyncFromApi extends Command
         'tag-subcategories' => \App\Services\Sync\TagSubcategorySyncService::class,
         'tags' => \App\Services\Sync\TagSyncService::class,
         'products' => \App\Services\Sync\ProductSyncService::class,
+        'zones' => \App\Services\Sync\ZoneSyncService::class,
         // Add more as you create them
     ];
 

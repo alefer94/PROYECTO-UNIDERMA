@@ -14,6 +14,8 @@ class ProductSyncService
 
     protected array $logs = [];
 
+    protected ?int $releaseCategoryId = null;
+
     public function __construct(
         WooCommerceService $wooCommerceService,
         ProductImageService $productImageService
@@ -39,6 +41,9 @@ class ProductSyncService
         $this->log($logger, 'Fetching products from Laravel...');
         $laravelProducts = $this->fetchLaravelProducts();
         $this->log($logger, 'Fetched '.$laravelProducts->count().' Laravel products.');
+
+        // 1.5 Fetch Release Category ID
+        $this->releaseCategoryId = $this->fetchReleaseCategoryId($logger);
 
         // 2. Index Data for O(1) lookup
         // Key by SKU for instant access
@@ -91,6 +96,30 @@ class ProductSyncService
         } while (count($products) === 100);
 
         return $allProducts;
+    }
+
+    protected function fetchReleaseCategoryId(?callable $logger = null): ?int
+    {
+        $this->log($logger, 'Checking for "Lanzamientos" category (group-4-releases)...');
+
+        try {
+            $categories = $this->wooCommerceService->getCategories([
+                'slug' => 'group-4-releases',
+            ]);
+
+            if (! empty($categories) && isset($categories[0]->id)) {
+                $id = (int) $categories[0]->id;
+                $this->log($logger, "✓ Found Lanzamientos category ID: {$id}");
+
+                return $id;
+            }
+        } catch (\Throwable $e) {
+            $this->log($logger, '⚠️ Could not fetch Lanzamientos category: '.$e->getMessage(), 'error');
+        }
+
+        $this->log($logger, 'ℹ️ Lanzamientos category (group-4-releases) not found or error occurred.');
+
+        return null;
     }
 
     protected function fetchLaravelProducts(): Collection
@@ -473,8 +502,9 @@ class ProductSyncService
         if ($localFilenames !== $wcFilenames) {
             Log::info("SKU {$laravelProduct->CodCatalogo} Changed: Images Mismatch");
 
-            Log::info("  Local: " . json_encode($localFilenames));
-            Log::info("  WC: " . json_encode($wcFilenames));
+            Log::info('  Local: '.json_encode($localFilenames));
+            Log::info('  WC: '.json_encode($wcFilenames));
+
             return true;
         }
 
@@ -551,6 +581,11 @@ class ProductSyncService
             $ids[] = (int) $catId;
         }
 
+        // Add Release Category if applicable
+        if ($product->FlgLanzamiento && $this->releaseCategoryId) {
+            $ids[] = $this->releaseCategoryId;
+        }
+
         return array_unique($ids);
     }
 
@@ -572,6 +607,7 @@ class ProductSyncService
             'precauciones' => $product->Precauciones,
             'presentacion' => $product->Presentacion,
             'registro' => $product->Registro,
+            'marca' => $product->laboratory?->NomLaboratorio,
         ];
 
         $meta = [];

@@ -38,5 +38,6 @@ return [
         'tag_subcategories' => env('API_SYNC_URL_TAG_SUBCATEGORIES'),
         'tags' => env('API_SYNC_URL_TAGS'),
         'products' => env('API_SYNC_URL_PRODUCTS'),
+        'zones' => env('API_SYNC_URL_ZONES'),
     ],
 ];

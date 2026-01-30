@@ -11,8 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('tag_subcategories', function (Blueprint $table) {
-            $table->unsignedBigInteger('WooCommerceCategoryId')->nullable()->after('Orden');
+        Schema::create('regions', function (Blueprint $table) {
+            $table->char('code', 2)->primary();
+            $table->string('name', 100);
+            $table->timestamps();
         });
     }
 
@@ -21,8 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('tag_subcategories', function (Blueprint $table) {
-            $table->dropColumn('WooCommerceCategoryId');
-        });
+        Schema::dropIfExists('regions');
     }
 };
